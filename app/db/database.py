@@ -1,5 +1,5 @@
 from databases import Database
+from app.core.variables import *
 
-DATABASE_URL = "sqlite:///./test.db"
 
 database = Database(DATABASE_URL)

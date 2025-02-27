@@ -6,6 +6,7 @@ from app.vms.routes import router as vms_router
 from app.claude.routes import router as claude_router
 from fastapi.middleware.cors import CORSMiddleware
 from app.templates.routes import router as template_router
+from app.core.variables import *
 
 app = FastAPI(
     title="VM Manager",
@@ -14,7 +15,7 @@ app = FastAPI(
 )
 
 origins = [
-    "http://localhost:3000",  # Frontend origin
+    FRONTEND_URL,
 ]
 
 app.add_middleware(

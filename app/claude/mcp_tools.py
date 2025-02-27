@@ -1,54 +1,70 @@
 import httpx
-from pydantic import BaseModel, Field
-from typing import Optional, List
+import logging
+from typing import Optional, List, Dict, Any
 
-KUBERNETES_API_URL = "https://ip"  # Replace with actual endpoint
-HEADERS = {"Authorization": f"Bearer token"}
+logger = logging.getLogger(__name__)
+FASTAPI_URL = "http://localhost:8000"
+
+# Modify api_request in mcp_tools.py
+async def api_request(method: str, endpoint: str, token: str, payload: Optional[dict] = None) -> List[Dict[str, Any]]:
+    try:
+        async with httpx.AsyncClient(follow_redirects=True) as client:
+            response = await client.request(
+                method,
+                f"{FASTAPI_URL}{endpoint}",
+                headers={"Authorization": f"Bearer {token}"},
+                json=payload,
+                timeout=10
+            )
+            response.raise_for_status()
+            data = response.json()
+            if isinstance(data, list):
+                return data
+            else:
+                return [data] if data else []
+            
+    except httpx.HTTPStatusError as e:
+        logger.error(f"API Error {e.response.status_code}: {e.response.text}")
+        raise RuntimeError(f"API Error {e.response.status_code}")
+    except Exception as e:
+        logger.error(f"Connection Error: {str(e)}")
+        raise RuntimeError("Connection failed")
+
+# Update get_vm_metrics in mcp_tools.py
+async def get_vm_metrics(token: str, vm_id: Optional[int] = None) -> List[Dict[str, Any]]:
+    if vm_id:
+        endpoint = f"/vms/{vm_id}/metrics"
+    else:
+        endpoint = "/vms/metrics"
+    return await api_request("GET", endpoint, token)
+
+async def list_vms(token: str) -> List[Dict[str, Any]]:
+    return await api_request("GET", "/vms", token)  # Added trailing slash
+
+async def list_templates(token: str) -> List[Dict[str, Any]]:
+    return await api_request("GET", "/templates", token)  # Added trailing slash
 
 
 
+async def get_vm_costs(token: str, vm_id: int) -> List[Dict[str, Any]]:
+    return await api_request("GET", f"/vms/{vm_id}/costs/", token)
 
-async def list_vms(user: str, namespace: str = "default"):
-    # Fetch VMs from the Kubernetes API
-    url = f"{KUBERNETES_API_URL}/apis/kubevirt.io/v1/namespaces/{namespace}/virtualmachines"
-    async with httpx.AsyncClient(verify=False) as client:
-        response = await client.get(url, headers=HEADERS)
-        if response.status_code != 200:
-            return {"error": response.text}
-
-    # Parse the response and map it to the expected schema
-    vms = response.json().get("items", [])
-    result = []
-    
-    for vm in vms:
-        metadata = vm.get("metadata", {})
-        spec = vm.get("spec", {})
-        status = vm.get("status", {})
-        template_spec = spec.get("template", {}).get("spec", {})
-        domain = template_spec.get("domain", {})
-        resources = domain.get("resources", {}).get("requests", {})
-        networks = template_spec.get("networks", [])
-        disks = domain.get("devices", {}).get("disks", [])
-        volumes = template_spec.get("volumes", [])
-
-        # Map the data to the simplified schema
-        result.append({
-            "name": metadata.get("name"),
-            "namespace": metadata.get("namespace"),
-            "uid": metadata.get("uid"),
-            "creationTimestamp": metadata.get("creationTimestamp"),
-            "architecture": template_spec.get("architecture", "Unknown"),
-            "memory": resources.get("memory", "Unknown"),
-            "status": status.get("printableStatus", "Unknown"),
-            "networks": [{"name": n.get("name")} for n in networks],
-            "disks": [{"name": d.get("name"), "bus": d.get("disk", {}).get("bus")} for d in disks],
-            "volumes": [
-                {
-                    "name": v.get("name"),
-                    "containerDiskImage": v.get("containerDisk", {}).get("image")
-                }
-                for v in volumes
-            ],
-        })
-    
-    return result
+# Add to mcp_tools.py
+async def update_vm(token: str, vm_id: int, cpu: int, ram: int) -> Dict[str, Any]:
+    endpoint = f"/vms/{vm_id}"
+    try:
+        async with httpx.AsyncClient(follow_redirects=True) as client:
+            response = await client.patch(
+                f"{FASTAPI_URL}{endpoint}",
+                headers={"Authorization": f"Bearer {token}"},
+                json={"cpu": cpu, "ram": ram},
+                timeout=10
+            )
+            response.raise_for_status()
+            return response.json()
+    except httpx.HTTPStatusError as e:
+        logger.error(f"Update Error {e.response.status_code}: {e.response.text}")
+        raise RuntimeError(f"Update failed: {e.response.text}")
+    except Exception as e:
+        logger.error(f"Connection Error: {str(e)}")
+        raise RuntimeError("Connection failed during update")

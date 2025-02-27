@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel
 from datetime import datetime
 import json
@@ -7,6 +7,7 @@ from app.db.models import templates, users
 from app.core.security import verify_token
 from typing import Optional, Dict, Any
 from app.templates.schemas import *
+from sqlalchemy import or_
 
 router = APIRouter()
 
@@ -50,18 +51,29 @@ async def create_vm_template(template: TemplateCreate, token=Depends(verify_toke
     }
 
 # ------------------ LIST ALL VM TEMPLATES ------------------
+# ------------------ LIST & SEARCH VM TEMPLATES ------------------
 @router.get("/", response_model=list[TemplateResponse])
-async def list_templates():
-    """List all VM templates. Everyone can see them."""
-    query = templates.select()
-    result = await database.fetch_all(query)
+async def list_or_search_templates(
+    query: Optional[str] = None,
+    limit: int = Query(50, ge=1, le=100),
+    offset: int = Query(0, ge=0)
+):
+    """List all VM templates, or search by name, namespace, or description."""
+    
+    search_query = templates.select().limit(limit).offset(offset)
 
-    return [
-        {
-            **dict(row)
-        }
-        for row in result
-    ]
+    if query:
+        search_pattern = f"%{query}%"
+        search_query = search_query.where(
+            or_(
+                templates.c.name.ilike(search_pattern),
+                templates.c.namespace.ilike(search_pattern),
+                templates.c.description.ilike(search_pattern)
+            )
+        )
+
+    result = await database.fetch_all(search_query)
+    return [dict(row) for row in result]
 
 # ------------------ GET A SINGLE VM TEMPLATE ------------------
 @router.get("/{template_id}", response_model=TemplateResponse)

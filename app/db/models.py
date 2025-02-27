@@ -5,8 +5,8 @@ from sqlalchemy import (
 from datetime import datetime
 from app.core.security import hash_password
 from app.db.database import database
-from app.core.variables import DEFAULT_ADMIN, DEFAULT_ADMIN_PWD
-DATABASE_URL = "sqlite:///./test.db"
+from app.core.variables import *
+
 
 engine = create_engine(DATABASE_URL, connect_args={"check_same_thread": False})
 metadata = MetaData()
@@ -78,7 +78,7 @@ def create_tables():
 
 
 async def init_admin():
-    query = users.select().where(users.c.username == "admin")
+    query = users.select().where(users.c.username == DEFAULT_ADMIN)
     admin_user = await database.fetch_one(query)
     
     if not admin_user:
