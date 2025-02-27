@@ -1,6 +1,6 @@
-# FastAPI Backend
+# Virtuoso Backend
 
-This is a FastAPI-based backend application designed to serve as the core of your system. It provides RESTful APIs, integrates with a database, and interacts with external services.
+This is a FastAPI-based backend application designed to serve as the core of your virtuoso system. It provides RESTful APIs to interact with k8s+virtuoso, integrates with a database, and interacts with external services.
 
 ---
 
